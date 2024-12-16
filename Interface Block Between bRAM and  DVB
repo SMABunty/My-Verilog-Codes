@@ -1,0 +1,62 @@
+module BitStreamConverter (
+    input wire clk,                  // Clock signal
+    input wire rst,                  // Reset signal
+    input wire start,                // Start signal to begin conversion
+    input wire [1503:0] data_in,     // 1504-bit input row from BRAM
+    output reg bit_out,              // Single bit output
+    output reg valid,                // Output valid signal
+    output reg done                  // Done signal when all bits are sent
+);
+
+    reg [10:0] bit_counter;          // 11-bit counter to iterate through 1504 bits
+
+    // State machine for controlling the bit streaming
+    typedef enum reg [1:0] {
+        IDLE = 2'b00,
+        STREAM = 2'b01,
+        DONE = 2'b10
+    } state_t;
+
+    state_t state;                   // Current state variable
+
+    always @(posedge clk or posedge rst) begin
+        if (rst) begin
+            // Reset all registers
+            state <= IDLE;
+            bit_counter <= 0;
+            bit_out <= 0;
+            valid <= 0;
+            done <= 0;
+        end
+        else begin
+            case (state)
+                IDLE: begin
+                    valid <= 0;
+                    done <= 0;
+                    if (start) begin
+                        state <= STREAM;
+                        bit_counter <= 0;
+                    end
+                end
+
+                STREAM: begin
+                    // Output bits sequentially
+                    bit_out <= data_in[1503 - bit_counter]; // Send MSB first
+                    valid <= 1;
+                    if (bit_counter < 1503) begin
+                        bit_counter <= bit_counter + 1;
+                    end
+                    else begin
+                        state <= DONE;
+                    end
+                end
+
+                DONE: begin
+                    valid <= 0;
+                    done <= 1;
+                    state <= IDLE; // Return to IDLE after completion
+                end
+            endcase
+        end
+    end
+endmodule
